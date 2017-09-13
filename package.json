@@ -7,7 +7,7 @@
     "start": "node index.js"
   },
   "author": "",
-  "license": "ISC",
+  "license": "Apache-2.0",
   "dependencies": {
     "coap": "^0.21.0",
     "dotenv": "^4.0.0",
