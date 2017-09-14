@@ -2,7 +2,7 @@
   "name": "quietcool",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "fans.js",
   "scripts": {
     "start": "node index.js"
   },
@@ -13,6 +13,7 @@
     "dotenv": "^4.0.0",
     "enquirer": "^1.0.2",
     "inquirer": "^3.2.3",
+    "limiter": "^1.1.2",
     "lodash": "^4.17.4",
     "nodemon": "^1.11.1",
     "prompt-list": "^2.2.0",
