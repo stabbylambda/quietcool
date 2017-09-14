@@ -2,7 +2,7 @@
   "name": "quietcool",
   "version": "1.0.0",
   "description": "",
-  "main": "fans.js",
+  "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
@@ -10,13 +10,7 @@
   "license": "Apache-2.0",
   "dependencies": {
     "coap": "^0.21.0",
-    "dotenv": "^4.0.0",
-    "enquirer": "^1.0.2",
-    "inquirer": "^3.2.3",
     "limiter": "^1.1.2",
-    "lodash": "^4.17.4",
-    "nodemon": "^1.11.1",
-    "prompt-list": "^2.2.0",
     "rxjs": "^5.4.3"
   }
 }

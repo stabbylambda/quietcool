@@ -1,140 +1,118 @@
+const coap = require("coap");
 const _ = require("lodash");
 const Rx = require("rxjs");
-const config = require("dotenv").config();
+const RateLimiter = require("limiter").RateLimiter;
+var limiter = new RateLimiter(1, 100);
 
-const fanControl = require("./fans");
+const sendWithRateLimit = req => limiter.removeTokens(1, () => req.end());
 
-const Enquirer = require("enquirer");
-const enquirer = new Enquirer();
-enquirer.register("list", require("prompt-list"));
+const request = (reqOptions, body) => {
+  let req = coap.request(reqOptions);
 
-const formatFanName = ({ info, status }) => {
-  const power = { "1": "ON", "0": "OFF" };
-  const speeds = { 3: "High", 2: "Medium", 1: "Low" };
-  let onOff = power[info.status];
-  let currentSpeed = speeds[status.speed];
-  return `${info.name} ${onOff} ${currentSpeed} (${info.uid})`;
-};
+  if (body) {
+    req.write(Buffer.from(JSON.stringify(body)));
+  }
 
-const mainMenu = ip => {
-  return Rx.Observable
-    .of(ip)
-    .flatMap(ip => fanControl.listFans(ip))
-    .flatMap(fans => {
-      let fanCount = fans.length;
-      console.log(`Found ${fanCount} fans`);
-      return Rx.Observable
-        .from(fans)
-        .concatMap(fan => Rx.Observable.of(fan).delay(100))
-        .flatMap(fan => fanControl.getFanInfo(ip, fan.uid))
-        .flatMap(info =>
-          fanControl.getFanStatus(ip, info.uid).map(status => ({
-            status,
-            info
-          }))
-        )
-        .take(fanCount)
-        .reduce((acc, fan) => {
-          acc[fan.info.uid] = fan;
-          return acc;
-        }, {});
-    })
-    .flatMap(fans => {
-      let choices = _.map(fans, formatFanName);
+  sendWithRateLimit(req);
 
-      return enquirer.ask([
-        {
-          type: "list",
-          name: "mainMenu",
-          message: "Here are your fans",
-          choices: [...choices, enquirer.separator(), "Refresh", "Quit"],
-          transform: answer => {
-            if (answer == "Refresh" || answer == "Quit") {
-              return { type: "action", value: answer };
-            }
-            let fan = _.find(fans, x => answer === formatFanName(x));
-            return { type: "fan", value: fan };
-          }
-        }
-      ]);
+  return Rx.Observable.create(observer => {
+    const errAndComplete = err => {
+      observer.error(err);
+      observer.complete();
+    };
+
+    req.on("response", res => {
+      if (!res.code.includes("2.")) {
+        errAndComplete(new Error(res));
+      }
+
+      observer.next(JSON.parse(res.payload.toString()));
+      observer.complete();
     });
+
+    req.on("error", errAndComplete);
+    req.on("timeout", errAndComplete);
+  });
 };
 
-const speedMenu = (ip, answers) => {
-  let uid = answers.mainMenu.value.info.uid;
+const requestWithId = (id, reqOptions, body) =>
+  request(reqOptions, body).map(throwIfNotTheRightFan(id));
 
-  return Rx.Observable
-    .from(
-      enquirer.ask([
-        {
-          type: "list",
-          name: "setSpeed",
-          message: `What speed for ${answers.mainMenu.value.info.name}`,
-          choices: ["High", "Medium", "Low"]
-        }
-      ])
-    )
-    .flatMap(answers => {
-      switch (answers.setSpeed) {
-        case "High":
-          return fanControl.setCurrentSpeed(ip, uid, 3);
-        case "Medium":
-          return fanControl.setCurrentSpeed(ip, uid, 2);
-        case "Low":
-          return fanControl.setCurrentSpeed(ip, uid, 1);
-      }
-    })
-    .flatMap(x => program(ip));
+const throwIfNotTheRightFan = expected => fan => {
+  if (fan.uid !== expected) {
+    throw new Error("Stupid controller gave back the wrong fan");
+  }
+  return fan;
 };
 
-const program = ip => {
-  return mainMenu(ip)
-    .takeWhile(answer => answer.mainMenu.value != "Quit")
-    .flatMap(({ mainMenu: { type, value } }) => {
-      if (type == "action" && value == "Refresh") {
-        return program(ip);
-      } else {
-        return enquirer.ask([
-          {
-            type: "list",
-            name: "action",
-            message: "What do you want to do?",
-            choices: [
-              "Turn On",
-              "Turn Off",
-              "Set Speed",
-              "Update Name",
-              "Update Speed",
-              "Back To Menu"
-            ]
-          }
-        ]);
-      }
-    })
-    .flatMap(answers => {
-      let uid = answers.mainMenu.value.info.uid;
-      switch (answers.action) {
-        case "Turn On":
-          return fanControl.turnFanOn(ip, uid).flatMap(x => program(ip));
-        case "Turn Off":
-          return fanControl.turnFanOff(ip, uid).flatMap(x => program(ip));
-        case "Set Speed":
-          return speedMenu(ip, answers);
-        case "Back To Menu":
-          return program(ip);
-        default:
-          return program(ip);
-      }
-    });
+const listFansWithInfo = ip => {
+  return listFans(ip).flatMap(fans => {
+    return Rx.Observable
+      .from(fans)
+      .concatMap(fan => Rx.Observable.of(fan))
+      .flatMap(fan => getFanInfo(ip, fan.uid));
+  });
 };
-let ip = process.env.CONTROLLER_IP;
-program(ip)
-  .catch(err => {
-    console.log("ERROR", err);
-    program(ip);
-  })
-  .subscribe(
-    fans => console.log(fans),
-    err => console.log(err),
-    () => console.log("completed")
+
+// The fan speed selection has three values in the app: 1, 2, and 3
+// And those speeds correspond to 4, 1, and 0
+// who knows why these values were chosen?!
+const sequences = { 3: 0, 2: 1, 1: 4 };
+
+const listFans = ip => request(`coap://${ip}/uids`);
+
+const getFanInfo = (ip, id) => requestWithId(id, `coap://${ip}/device/${id}`);
+
+const getFanStatus = (ip, id) =>
+  requestWithId(id, `coap://${ip}/control/${id}`);
+
+const getFanWifi = (ip, id) => requestWithId(id, `coap://${ip}/wifi/${id}`);
+
+const getFanDiagnostics = (ip, id) =>
+  requestWithId(id, `coap://${ip}/diagnostic/${id}`);
+
+const updateFanName = (ip, id, name) =>
+  requestWithId(
+    id,
+    { method: "PUT", hostname: ip, pathname: `/device/${id}` },
+    { name }
   );
+
+const setTimeRemaining = (ip, id, remaining) =>
+  requestWithId(
+    id,
+    { method: "PUT", hostname: ip, pathname: `/control/${id}` },
+    { remaining }
+  );
+
+const setCurrentSpeed = (ip, id, speed) =>
+  requestWithId(
+    id,
+    { method: "PUT", hostname: ip, pathname: `/control/${id}` },
+    { speed }
+  );
+
+const updateFanSpeeds = (ip, id, speeds) =>
+  requestWithId(
+    id,
+    { hostname: ip, pathname: `/control/${id}`, method: "PUT" },
+    { sequence: sequences[speeds] }
+  );
+
+const turnFanOff = (ip, id) => setTimeRemaining(ip, id, 0);
+
+const turnFanOn = (ip, id) => setTimeRemaining(ip, id, 65535);
+
+module.exports = {
+  listFans,
+  listFansWithInfo,
+  turnFanOn,
+  turnFanOff,
+  updateFanSpeeds,
+  updateFanName,
+  getFanInfo,
+  getFanStatus,
+  getFanWifi,
+  getFanDiagnostics,
+  setCurrentSpeed
+};
