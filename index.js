@@ -44,14 +44,16 @@ const throwIfNotTheRightFan = expected => fan => {
   return fan;
 };
 
-const listFansWithInfo = ip => {
-  return listFans(ip).flatMap(fans => {
-    return Rx.Observable
-      .from(fans)
-      .concatMap(fan => Rx.Observable.of(fan))
-      .flatMap(fan => getFanInfo(ip, fan.uid));
-  });
-};
+const listFansWithInfo = ip =>
+  listFans(ip)
+    .flatMap(fans => Rx.Observable.from(fans))
+    .flatMap(fan =>
+      Rx.Observable.zip(
+        getFanInfo(ip, fan.uid),
+        getFanStatus(ip, fan.uid),
+        (info, status) => ({ uid: fan.uid, info, status })
+      )
+    );
 
 // The fan speed selection has three values in the app: 1, 2, and 3
 // And those speeds correspond to 4, 1, and 0
