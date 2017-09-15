@@ -1,5 +1,4 @@
 const coap = require("coap");
-const _ = require("lodash");
 const Rx = require("rxjs");
 const RateLimiter = require("limiter").RateLimiter;
 var limiter = new RateLimiter(1, 100);
