@@ -1,11 +1,21 @@
-const coap = require("coap");
-const Rx = require("rxjs");
-const RateLimiter = require("limiter").RateLimiter;
+import * as coap from "coap";
+import * as Rx from "rxjs";
+import { RateLimiter } from "limiter";
+
 var limiter = new RateLimiter(1, 100);
 
 const sendWithRateLimit = req => limiter.removeTokens(1, () => req.end());
 
-const request = (reqOptions, body) => {
+const throwIfNotTheRightFan = (expected: string) => fan => {
+  if (fan.uid !== expected) {
+    throw new Error("Stupid controller gave back the wrong fan");
+  }
+  return fan;
+};
+
+function request(url: string, body?: object);
+function request(options: object, body?: object);
+function request(reqOptions, body) {
   let req = coap.request(reqOptions);
 
   if (body) {
@@ -34,15 +44,11 @@ const request = (reqOptions, body) => {
   });
 };
 
-const requestWithId = (id, reqOptions, body) =>
+function requestWithId(id: string, url: string, body?: object);
+function requestWithId(id: string, options: object, body?: object);
+function requestWithId(id, reqOptions, body) {
   request(reqOptions, body).map(throwIfNotTheRightFan(id));
-
-const throwIfNotTheRightFan = expected => fan => {
-  if (fan.uid !== expected) {
-    throw new Error("Stupid controller gave back the wrong fan");
-  }
-  return fan;
-};
+}
 
 const listFansWithInfo = ip =>
   listFans(ip)
@@ -62,47 +68,47 @@ const sequences = { 3: 0, 2: 1, 1: 4 };
 
 const listFans = ip => request(`coap://${ip}/uids`);
 
-const getFanInfo = (ip, id) => requestWithId(id, `coap://${ip}/device/${id}`);
+const getFanInfo = (ip: string, id: string) => requestWithId(id, `coap://${ip}/device/${id}`);
 
-const getFanStatus = (ip, id) =>
+const getFanStatus = (ip: string, id: string) =>
   requestWithId(id, `coap://${ip}/control/${id}`);
 
-const getFanWifi = (ip, id) => requestWithId(id, `coap://${ip}/wifi/${id}`);
+const getFanWifi = (ip: string, id: string) => requestWithId(id, `coap://${ip}/wifi/${id}`);
 
-const getFanDiagnostics = (ip, id) =>
+const getFanDiagnostics = (ip: string, id: string) =>
   requestWithId(id, `coap://${ip}/diagnostic/${id}`);
 
-const updateFanName = (ip, id, name) =>
+const updateFanName = (ip: string, id: string, name) =>
   requestWithId(
     id,
     { method: "PUT", hostname: ip, pathname: `/device/${id}` },
     { name }
   );
 
-const setTimeRemaining = (ip, id, remaining) =>
+const setTimeRemaining = (ip: string, id: string, remaining) =>
   requestWithId(
     id,
     { method: "PUT", hostname: ip, pathname: `/control/${id}` },
     { remaining }
   );
 
-const setCurrentSpeed = (ip, id, speed) =>
+const setCurrentSpeed = (ip: string, id: string, speed) =>
   requestWithId(
     id,
     { method: "PUT", hostname: ip, pathname: `/control/${id}` },
     { speed }
   );
 
-const updateFanSpeeds = (ip, id, speeds) =>
+const updateFanSpeeds = (ip: string, id: string, speeds) =>
   requestWithId(
     id,
     { hostname: ip, pathname: `/control/${id}`, method: "PUT" },
     { sequence: sequences[speeds] }
   );
 
-const turnFanOff = (ip, id) => setTimeRemaining(ip, id, 0);
+const turnFanOff = (ip: string, id: string) => setTimeRemaining(ip, id, 0);
 
-const turnFanOn = (ip, id) => setTimeRemaining(ip, id, 65535);
+const turnFanOn = (ip: string, id: string) => setTimeRemaining(ip, id, 65535);
 
 module.exports = {
   listFans,
