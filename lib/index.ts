@@ -37,7 +37,7 @@ var limiter = new RateLimiter(1, 100);
 const sendWithRateLimit = req => limiter.removeTokens(1, () => req.end());
 
 function throwIfNotTheRightFan(expected: string) {
-  return function(fan: FanId) {
+  return function(fan: FanId): FanId {
     if (fan.uid !== expected) {
       throw new Error("Stupid controller gave back the wrong fan");
     }
@@ -45,9 +45,9 @@ function throwIfNotTheRightFan(expected: string) {
   };
 }
 
-function request(url: string, body?: object);
-function request(options: object, body?: object);
-function request(reqOptions, body) {
+function request<T>(url: string, body?: object): Observable<T>;
+function request<T>(options: object, body?: object): Observable<T>;
+function request<T>(reqOptions, body) {
   let req = coap.request(reqOptions);
 
   if (body) {
@@ -76,10 +76,18 @@ function request(reqOptions, body) {
   });
 }
 
-function requestWithId(id: string, url: string, body?: object);
-function requestWithId(id: string, options: object, body?: object);
-function requestWithId(id, reqOptions, body) {
-  return request(reqOptions, body).map(throwIfNotTheRightFan(id));
+function requestWithId<T extends FanId>(
+  id: string,
+  url: string,
+  body?: object
+): Observable<T>;
+function requestWithId<T extends FanId>(
+  id: string,
+  options: object,
+  body?: object
+): Observable<T>;
+function requestWithId<T extends FanId>(id, reqOptions, body) {
+  return request<T>(reqOptions, body).map(throwIfNotTheRightFan(id));
 }
 
 const listFansWithInfo = ip =>
