@@ -2,12 +2,22 @@
   "name": "quietcool",
   "version": "1.0.3",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "start": "node index.js"
+    "prepublish": "npm run build",
+    "build": "tsc",
+    "format": "prettier --write lib/*",
+    "start": "node-ts ./lib/index.ts"
   },
   "author": "",
   "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/node": "^9.4.6",
+    "node-ts": "^2.1.2",
+    "prettier": "^1.10.2",
+    "typescript": "^2.7.2"
+  },
   "dependencies": {
     "coap": "^0.21.0",
     "limiter": "^1.1.2",
