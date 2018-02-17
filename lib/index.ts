@@ -1,17 +1,50 @@
 import * as coap from "coap";
-import * as Rx from "rxjs";
+import { Observable } from "rxjs";
 import { RateLimiter } from "limiter";
+
+interface FanId {
+    uid: string
+}
+
+interface DeviceResponse {
+    uid: string,
+    type: string
+    name: string,
+    version: string,
+    config: string,
+    model: string,
+    pincode: string,
+    role: string,
+    online: string,
+    status: string,
+    hubid: string
+}
+
+
+interface ControlResponse {
+    uid: string,
+    mode: string,
+    sequence: string,
+    speed: string,
+    duration: string,
+    started: string
+    remaining: string,
+    source: string,
+    input_1_value: string
+}
 
 var limiter = new RateLimiter(1, 100);
 
 const sendWithRateLimit = req => limiter.removeTokens(1, () => req.end());
 
-const throwIfNotTheRightFan = (expected: string) => fan => {
-  if (fan.uid !== expected) {
-    throw new Error("Stupid controller gave back the wrong fan");
-  }
-  return fan;
-};
+function throwIfNotTheRightFan(expected: string) {
+    return function(fan: FanId) {
+        if (fan.uid !== expected) {
+            throw new Error("Stupid controller gave back the wrong fan");
+        }
+        return fan;
+    }
+}
 
 function request(url: string, body?: object);
 function request(options: object, body?: object);
@@ -24,7 +57,7 @@ function request(reqOptions, body) {
 
   sendWithRateLimit(req);
 
-  return Rx.Observable.create(observer => {
+  return Observable.create(observer => {
     const errAndComplete = err => {
       observer.error(err);
       observer.complete();
@@ -47,14 +80,14 @@ function request(reqOptions, body) {
 function requestWithId(id: string, url: string, body?: object);
 function requestWithId(id: string, options: object, body?: object);
 function requestWithId(id, reqOptions, body) {
-  request(reqOptions, body).map(throwIfNotTheRightFan(id));
+  return request(reqOptions, body).map(throwIfNotTheRightFan(id));
 }
 
 const listFansWithInfo = ip =>
   listFans(ip)
-    .flatMap(fans => Rx.Observable.from(fans))
+    .flatMap(fans => Observable.from(fans))
     .flatMap(fan =>
-      Rx.Observable.zip(
+      Observable.zip(
         getFanInfo(ip, fan.uid),
         getFanStatus(ip, fan.uid),
         (info, status) => ({ uid: fan.uid, info, status })
@@ -66,12 +99,17 @@ const listFansWithInfo = ip =>
 // who knows why these values were chosen?!
 const sequences = { 3: 0, 2: 1, 1: 4 };
 
-const listFans = ip => request(`coap://${ip}/uids`);
+function listFans(ip: string) : Observable<FanId[]> {
+    return request(`coap://${ip}/uids`);
+}
 
-const getFanInfo = (ip: string, id: string) => requestWithId(id, `coap://${ip}/device/${id}`);
+function getFanInfo(ip: string, id: string) : Observable<DeviceResponse> {
+    return requestWithId(id, `coap://${ip}/device/${id}`);
+}
 
-const getFanStatus = (ip: string, id: string) =>
-  requestWithId(id, `coap://${ip}/control/${id}`);
+function getFanStatus(ip: string, id: string) : Observable<ControlResponse> {
+  return requestWithId(id, `coap://${ip}/control/${id}`);
+}
 
 const getFanWifi = (ip: string, id: string) => requestWithId(id, `coap://${ip}/wifi/${id}`);
 
