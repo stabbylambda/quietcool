@@ -3,34 +3,33 @@ import { Observable } from "rxjs";
 import { RateLimiter } from "limiter";
 
 interface FanId {
-    uid: string
+  uid: string;
 }
 
 interface DeviceResponse {
-    uid: string,
-    type: string
-    name: string,
-    version: string,
-    config: string,
-    model: string,
-    pincode: string,
-    role: string,
-    online: string,
-    status: string,
-    hubid: string
+  uid: string;
+  type: string;
+  name: string;
+  version: string;
+  config: string;
+  model: string;
+  pincode: string;
+  role: string;
+  online: string;
+  status: string;
+  hubid: string;
 }
 
-
 interface ControlResponse {
-    uid: string,
-    mode: string,
-    sequence: string,
-    speed: string,
-    duration: string,
-    started: string
-    remaining: string,
-    source: string,
-    input_1_value: string
+  uid: string;
+  mode: string;
+  sequence: string;
+  speed: string;
+  duration: string;
+  started: string;
+  remaining: string;
+  source: string;
+  input_1_value: string;
 }
 
 var limiter = new RateLimiter(1, 100);
@@ -38,12 +37,12 @@ var limiter = new RateLimiter(1, 100);
 const sendWithRateLimit = req => limiter.removeTokens(1, () => req.end());
 
 function throwIfNotTheRightFan(expected: string) {
-    return function(fan: FanId) {
-        if (fan.uid !== expected) {
-            throw new Error("Stupid controller gave back the wrong fan");
-        }
-        return fan;
+  return function(fan: FanId) {
+    if (fan.uid !== expected) {
+      throw new Error("Stupid controller gave back the wrong fan");
     }
+    return fan;
+  };
 }
 
 function request(url: string, body?: object);
@@ -75,7 +74,7 @@ function request(reqOptions, body) {
     req.on("error", errAndComplete);
     req.on("timeout", errAndComplete);
   });
-};
+}
 
 function requestWithId(id: string, url: string, body?: object);
 function requestWithId(id: string, options: object, body?: object);
@@ -99,19 +98,20 @@ const listFansWithInfo = ip =>
 // who knows why these values were chosen?!
 const sequences = { 3: 0, 2: 1, 1: 4 };
 
-function listFans(ip: string) : Observable<FanId[]> {
-    return request(`coap://${ip}/uids`);
+function listFans(ip: string): Observable<FanId[]> {
+  return request(`coap://${ip}/uids`);
 }
 
-function getFanInfo(ip: string, id: string) : Observable<DeviceResponse> {
-    return requestWithId(id, `coap://${ip}/device/${id}`);
+function getFanInfo(ip: string, id: string): Observable<DeviceResponse> {
+  return requestWithId(id, `coap://${ip}/device/${id}`);
 }
 
-function getFanStatus(ip: string, id: string) : Observable<ControlResponse> {
+function getFanStatus(ip: string, id: string): Observable<ControlResponse> {
   return requestWithId(id, `coap://${ip}/control/${id}`);
 }
 
-const getFanWifi = (ip: string, id: string) => requestWithId(id, `coap://${ip}/wifi/${id}`);
+const getFanWifi = (ip: string, id: string) =>
+  requestWithId(id, `coap://${ip}/wifi/${id}`);
 
 const getFanDiagnostics = (ip: string, id: string) =>
   requestWithId(id, `coap://${ip}/diagnostic/${id}`);
