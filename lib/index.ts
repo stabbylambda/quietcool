@@ -6,6 +6,12 @@ interface FanId {
   uid: string;
 }
 
+interface RequestOptions {
+  method: string;
+  hostname: string;
+  pathname: string;
+}
+
 interface DeviceResponse {
   uid: string;
   type: string;
@@ -48,15 +54,14 @@ function throwIfNotTheRightFan(expected: string) {
 function request<T>(url: string, body?: object): Observable<T>;
 function request<T>(options: object, body?: object): Observable<T>;
 function request<T>(reqOptions, body) {
-  let req = coap.request(reqOptions);
-
-  if (body) {
-    req.write(Buffer.from(JSON.stringify(body)));
-  }
-
-  sendWithRateLimit(req);
-
   return Observable.create(observer => {
+    let req = coap.request(reqOptions);
+
+    if (body) {
+      req.write(Buffer.from(JSON.stringify(body)));
+    }
+
+    sendWithRateLimit(req);
     const errAndComplete = err => {
       observer.error(err);
       observer.complete();
@@ -83,7 +88,7 @@ function requestWithId<T extends FanId>(
 ): Observable<T>;
 function requestWithId<T extends FanId>(
   id: string,
-  options: object,
+  options: RequestOptions,
   body?: object
 ): Observable<T>;
 function requestWithId<T extends FanId>(id, reqOptions, body) {
@@ -106,17 +111,14 @@ const listFansWithInfo = ip =>
 // who knows why these values were chosen?!
 const sequences = { 3: 0, 2: 1, 1: 4 };
 
-function listFans(ip: string): Observable<FanId[]> {
-  return request(`coap://${ip}/uids`);
-}
+const listFans = (ip: string): Observable<FanId[]> =>
+  request(`coap://${ip}/uids`);
 
-function getFanInfo(ip: string, id: string): Observable<DeviceResponse> {
-  return requestWithId(id, `coap://${ip}/device/${id}`);
-}
+const getFanInfo = (ip: string, id: string): Observable<DeviceResponse> =>
+  requestWithId(id, `coap://${ip}/device/${id}`);
 
-function getFanStatus(ip: string, id: string): Observable<ControlResponse> {
-  return requestWithId(id, `coap://${ip}/control/${id}`);
-}
+const getFanStatus = (ip: string, id: string): Observable<ControlResponse> =>
+  requestWithId(id, `coap://${ip}/control/${id}`);
 
 const getFanWifi = (ip: string, id: string) =>
   requestWithId(id, `coap://${ip}/wifi/${id}`);
@@ -124,31 +126,47 @@ const getFanWifi = (ip: string, id: string) =>
 const getFanDiagnostics = (ip: string, id: string) =>
   requestWithId(id, `coap://${ip}/diagnostic/${id}`);
 
-const updateFanName = (ip: string, id: string, name) =>
+const updateFanName = (
+  ip: string,
+  id: string,
+  name: string
+): Observable<DeviceResponse> =>
   requestWithId(
     id,
     { method: "PUT", hostname: ip, pathname: `/device/${id}` },
     { name }
   );
 
-const setTimeRemaining = (ip: string, id: string, remaining) =>
+const setTimeRemaining = (
+  ip: string,
+  id: string,
+  remaining: number
+): Observable<ControlResponse> =>
   requestWithId(
     id,
     { method: "PUT", hostname: ip, pathname: `/control/${id}` },
     { remaining }
   );
 
-const setCurrentSpeed = (ip: string, id: string, speed) =>
+const setCurrentSpeed = (
+  ip: string,
+  id: string,
+  speed: string
+): Observable<ControlResponse> =>
   requestWithId(
     id,
     { method: "PUT", hostname: ip, pathname: `/control/${id}` },
     { speed }
   );
 
-const updateFanSpeeds = (ip: string, id: string, speeds) =>
+const updateFanSpeeds = (
+  ip: string,
+  id: string,
+  speeds: string
+): Observable<ControlResponse> =>
   requestWithId(
     id,
-    { hostname: ip, pathname: `/control/${id}`, method: "PUT" },
+    { method: "PUT", hostname: ip, pathname: `/control/${id}` },
     { sequence: sequences[speeds] }
   );
 
