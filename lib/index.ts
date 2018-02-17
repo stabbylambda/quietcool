@@ -2,17 +2,17 @@ import * as coap from "coap";
 import { Observable } from "rxjs";
 import { RateLimiter } from "limiter";
 
-interface FanId {
+export interface FanId {
   uid: string;
 }
 
-interface RequestOptions {
-  method: string;
-  hostname: string;
-  pathname: string;
+export interface RequestOptions {
+    method: string,
+    hostname: string,
+    pathname: string
 }
 
-interface DeviceResponse {
+export interface DeviceResponse {
   uid: string;
   type: string;
   name: string;
@@ -26,7 +26,7 @@ interface DeviceResponse {
   hubid: string;
 }
 
-interface ControlResponse {
+export interface ControlResponse {
   uid: string;
   mode: string;
   sequence: string;
@@ -81,6 +81,7 @@ function request<T>(reqOptions, body) {
   });
 }
 
+
 function requestWithId<T extends FanId>(
   id: string,
   url: string,
@@ -95,7 +96,7 @@ function requestWithId<T extends FanId>(id, reqOptions, body) {
   return request<T>(reqOptions, body).map(throwIfNotTheRightFan(id));
 }
 
-const listFansWithInfo = ip =>
+export const listFansWithInfo = ip =>
   listFans(ip)
     .flatMap(fans => Observable.from(fans))
     .flatMap(fan =>
@@ -111,22 +112,22 @@ const listFansWithInfo = ip =>
 // who knows why these values were chosen?!
 const sequences = { 3: 0, 2: 1, 1: 4 };
 
-const listFans = (ip: string): Observable<FanId[]> =>
+export const listFans = (ip: string): Observable<FanId[]> =>
   request(`coap://${ip}/uids`);
 
-const getFanInfo = (ip: string, id: string): Observable<DeviceResponse> =>
+export const getFanInfo = (ip: string, id: string): Observable<DeviceResponse> =>
   requestWithId(id, `coap://${ip}/device/${id}`);
 
-const getFanStatus = (ip: string, id: string): Observable<ControlResponse> =>
+export const getFanStatus = (ip: string, id: string): Observable<ControlResponse> =>
   requestWithId(id, `coap://${ip}/control/${id}`);
 
-const getFanWifi = (ip: string, id: string) =>
+export const getFanWifi = (ip: string, id: string) =>
   requestWithId(id, `coap://${ip}/wifi/${id}`);
 
-const getFanDiagnostics = (ip: string, id: string) =>
+export const getFanDiagnostics = (ip: string, id: string) =>
   requestWithId(id, `coap://${ip}/diagnostic/${id}`);
 
-const updateFanName = (
+export const updateFanName = (
   ip: string,
   id: string,
   name: string
@@ -137,7 +138,7 @@ const updateFanName = (
     { name }
   );
 
-const setTimeRemaining = (
+export const setTimeRemaining = (
   ip: string,
   id: string,
   remaining: number
@@ -148,7 +149,7 @@ const setTimeRemaining = (
     { remaining }
   );
 
-const setCurrentSpeed = (
+export const setCurrentSpeed = (
   ip: string,
   id: string,
   speed: string
@@ -159,20 +160,20 @@ const setCurrentSpeed = (
     { speed }
   );
 
-const updateFanSpeeds = (
+export const updateFanSpeeds = (
   ip: string,
   id: string,
   speeds: string
 ): Observable<ControlResponse> =>
   requestWithId(
     id,
-    { method: "PUT", hostname: ip, pathname: `/control/${id}` },
+    { method: "PUT", hostname: ip, pathname: `/control/${id}`},
     { sequence: sequences[speeds] }
   );
 
-const turnFanOff = (ip: string, id: string) => setTimeRemaining(ip, id, 0);
+export const turnFanOff = (ip: string, id: string) => setTimeRemaining(ip, id, 0);
 
-const turnFanOn = (ip: string, id: string) => setTimeRemaining(ip, id, 65535);
+export const turnFanOn = (ip: string, id: string) => setTimeRemaining(ip, id, 65535);
 
 module.exports = {
   listFans,
