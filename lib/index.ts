@@ -1,190 +1,76 @@
-import * as coap from "coap";
 import { Observable } from "rxjs";
-import { RateLimiter } from "limiter";
+import {
+  FanId,
+  UidOnly,
+  FanDetails,
+  DeviceResponse,
+  ControlResponse,
+  request,
+  requestWithId,
+  putRequestWithId
+} from "./request";
+export { FanId, UidOnly, FanDetails, DeviceResponse, ControlResponse } from "./request";
 
-export interface FanId {
-  uid: string;
-}
+export const getFanDetails = (id: FanId): Observable<FanDetails> =>
+  Observable.zip(getFanInfo(id), getFanStatus(id), (info, status) => ({
+    id,
+    info,
+    status
+  }));
 
-export interface RequestOptions {
-    method: string,
-    hostname: string,
-    pathname: string
-}
-
-export interface DeviceResponse {
-  uid: string;
-  type: string;
-  name: string;
-  version: string;
-  config: string;
-  model: string;
-  pincode: string;
-  role: string;
-  online: string;
-  status: string;
-  hubid: string;
-}
-
-export interface ControlResponse {
-  uid: string;
-  mode: string;
-  sequence: string;
-  speed: string;
-  duration: string;
-  started: string;
-  remaining: string;
-  source: string;
-  input_1_value: string;
-}
-
-var limiter = new RateLimiter(1, 100);
-
-const sendWithRateLimit = req => limiter.removeTokens(1, () => req.end());
-
-function throwIfNotTheRightFan(expected: string) {
-  return function(fan: FanId): FanId {
-    if (fan.uid !== expected) {
-      throw new Error("Stupid controller gave back the wrong fan");
-    }
-    return fan;
-  };
-}
-
-function request<T>(url: string, body?: object): Observable<T>;
-function request<T>(options: object, body?: object): Observable<T>;
-function request<T>(reqOptions, body) {
-  return Observable.create(observer => {
-    let req = coap.request(reqOptions);
-
-    if (body) {
-      req.write(Buffer.from(JSON.stringify(body)));
-    }
-
-    sendWithRateLimit(req);
-    const errAndComplete = err => {
-      observer.error(err);
-      observer.complete();
-    };
-
-    req.on("response", res => {
-      if (!res.code.includes("2.")) {
-        errAndComplete(new Error(res));
-      }
-
-      observer.next(JSON.parse(res.payload.toString()));
-      observer.complete();
-    });
-
-    req.on("error", errAndComplete);
-    req.on("timeout", errAndComplete);
-  });
-}
-
-
-function requestWithId<T extends FanId>(
-  id: string,
-  url: string,
-  body?: object
-): Observable<T>;
-function requestWithId<T extends FanId>(
-  id: string,
-  options: RequestOptions,
-  body?: object
-): Observable<T>;
-function requestWithId<T extends FanId>(id, reqOptions, body) {
-  return request<T>(reqOptions, body).map(throwIfNotTheRightFan(id));
-}
-
-export const listFansWithInfo = ip =>
+export const listFansWithInfo = (ip: string) =>
   listFans(ip)
     .flatMap(fans => Observable.from(fans))
-    .flatMap(fan =>
-      Observable.zip(
-        getFanInfo(ip, fan.uid),
-        getFanStatus(ip, fan.uid),
-        (info, status) => ({ uid: fan.uid, info, status })
-      )
-    );
+    .flatMap(getFanDetails);
 
 // The fan speed selection has three values in the app: 1, 2, and 3
 // And those speeds correspond to 4, 1, and 0
 // who knows why these values were chosen?!
-const sequences = { 3: 0, 2: 1, 1: 4 };
 
 export const listFans = (ip: string): Observable<FanId[]> =>
-  request(`coap://${ip}/uids`);
+  request<UidOnly[]>(`coap://${ip}/uids`).map(x =>
+    x.map(y => ({ uid: y.uid, ip }))
+  );
 
-export const getFanInfo = (ip: string, id: string): Observable<DeviceResponse> =>
-  requestWithId(id, `coap://${ip}/device/${id}`);
+export const getFanInfo = (id: FanId): Observable<DeviceResponse> =>
+  requestWithId(id, `coap://${id.ip}/device/${id.uid}`);
 
-export const getFanStatus = (ip: string, id: string): Observable<ControlResponse> =>
-  requestWithId(id, `coap://${ip}/control/${id}`);
+export const getFanStatus = (id: FanId): Observable<ControlResponse> =>
+  requestWithId(id, `coap://${id.ip}/control/${id.uid}`);
 
-export const getFanWifi = (ip: string, id: string) =>
-  requestWithId(id, `coap://${ip}/wifi/${id}`);
+export const getFanWifi = (id: FanId) =>
+  requestWithId(id, `coap://${id.ip}/wifi/${id.uid}`);
 
-export const getFanDiagnostics = (ip: string, id: string) =>
-  requestWithId(id, `coap://${ip}/diagnostic/${id}`);
+export const getFanDiagnostics = (id: FanId) =>
+  requestWithId(id, `coap://${id.ip}/diagnostic/${id.uid}`);
 
 export const updateFanName = (
-  ip: string,
-  id: string,
+  id: FanId,
   name: string
 ): Observable<DeviceResponse> =>
-  requestWithId(
-    id,
-    { method: "PUT", hostname: ip, pathname: `/device/${id}` },
-    { name }
-  );
+  putRequestWithId(id, `/device/${id.uid}`, { name });
 
 export const setTimeRemaining = (
-  ip: string,
-  id: string,
+  id: FanId,
   remaining: number
 ): Observable<ControlResponse> =>
-  requestWithId(
-    id,
-    { method: "PUT", hostname: ip, pathname: `/control/${id}` },
-    { remaining }
-  );
+  putRequestWithId(id, `/control/${id.uid}`, { remaining });
 
 export const setCurrentSpeed = (
-  ip: string,
-  id: string,
+  id: FanId,
   speed: string
 ): Observable<ControlResponse> =>
-  requestWithId(
-    id,
-    { method: "PUT", hostname: ip, pathname: `/control/${id}` },
-    { speed }
-  );
+  putRequestWithId(id, `/control/${id.uid}`, { speed });
 
+const sequences = { "3": 0, "2": 1, "1": 4 };
 export const updateFanSpeeds = (
-  ip: string,
-  id: string,
+  id: FanId,
   speeds: string
 ): Observable<ControlResponse> =>
-  requestWithId(
-    id,
-    { method: "PUT", hostname: ip, pathname: `/control/${id}`},
-    { sequence: sequences[speeds] }
-  );
+  putRequestWithId(id, `/control/${id.uid}`, {
+    sequence: sequences[speeds]
+  });
 
-export const turnFanOff = (ip: string, id: string) => setTimeRemaining(ip, id, 0);
+export const turnFanOff = (id: FanId) => setTimeRemaining(id, 0);
 
-export const turnFanOn = (ip: string, id: string) => setTimeRemaining(ip, id, 65535);
-
-module.exports = {
-  listFans,
-  listFansWithInfo,
-  turnFanOn,
-  turnFanOff,
-  updateFanSpeeds,
-  updateFanName,
-  getFanInfo,
-  getFanStatus,
-  getFanWifi,
-  getFanDiagnostics,
-  setCurrentSpeed
-};
+export const turnFanOn = (id: FanId) => setTimeRemaining(id, 65535);
