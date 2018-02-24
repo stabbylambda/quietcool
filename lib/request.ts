@@ -68,7 +68,7 @@ export function request<T>(reqOptions, body) {
 
     req.on("response", res => {
       if (!res.code.includes("2.")) {
-        errAndComplete(new Error(res));
+        return errAndComplete(new Error(res));
       }
 
       observer.next(JSON.parse(res.payload.toString()));

@@ -5,9 +5,9 @@
     "declaration": true,
     "outDir": "./dist",
     "rootDir": "./lib",
-    "skipLibCheck": true, // see https://github.com/ReactiveX/rxjs/issues/3031
+    "skipLibCheck": true,
     "strict": true,
     "noImplicitAny": false,
-    "esModuleInterop": true,
+    "esModuleInterop": true
   }
 }
