@@ -5,10 +5,9 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "prepublish": "npm run build",
+    "prepublish": "tsc",
     "build": "tsc",
     "format": "prettier --write lib/*",
-    "start": "node-ts ./lib/index.ts",
     "test": "tsc"
   },
   "author": "",

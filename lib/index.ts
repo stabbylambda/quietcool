@@ -9,7 +9,13 @@ import {
   requestWithId,
   putRequestWithId
 } from "./request";
-export { FanId, UidOnly, FanDetails, DeviceResponse, ControlResponse } from "./request";
+export {
+  FanId,
+  UidOnly,
+  FanDetails,
+  DeviceResponse,
+  ControlResponse
+} from "./request";
 
 export const getFanDetails = (id: FanId): Observable<FanDetails> =>
   Observable.zip(getFanInfo(id), getFanStatus(id), (info, status) => ({
