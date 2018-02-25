@@ -80,3 +80,5 @@ export const updateFanSpeeds = (
 export const turnFanOff = (id: FanId) => setTimeRemaining(id, 0);
 
 export const turnFanOn = (id: FanId) => setTimeRemaining(id, 65535);
+
+export const power = (id: FanId, on: boolean) => on ? turnFanOn(id) : turnFanOff(id);
